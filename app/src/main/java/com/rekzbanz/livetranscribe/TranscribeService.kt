@@ -74,12 +74,25 @@ class TranscribeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> startSession(intent)
-            else -> {
-                stopSession("Stopped")
+        if (intent != null && intent.action == ACTION_START) {
+            // Must enter the foreground first, whatever happens next.
+            val needsProjection = intent.getIntExtra(EXTRA_SOURCE, SOURCE_MIC) != SOURCE_MIC
+            try {
+                createChannel()
+                enterForeground(needsProjection)
+            } catch (t: Throwable) {
+                TranscriptBus.setState(false, "Cannot start service: ${describe(t)}")
                 stopSelf()
+                return START_NOT_STICKY
             }
+            try {
+                startSession(intent)
+            } catch (t: Throwable) {
+                fail("Error: ${describe(t)}")
+            }
+        } else {
+            stopSession("Stopped")
+            stopSelf()
         }
         return START_NOT_STICKY
     }
@@ -100,17 +113,6 @@ class TranscribeService : Service() {
         reconnectAttempts = 0
         val needsProjection = source != SOURCE_MIC
 
-        createChannel()
-        val types = if (needsProjection) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        } else {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        }
-        ServiceCompat.startForeground(
-            this, NOTIF_ID, buildNotification(getString(R.string.notif_listening)), types
-        )
-
         if (needsProjection) {
             val code = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
             val data = IntentCompat.getParcelableExtra(intent, EXTRA_PROJECTION_DATA, Intent::class.java)
@@ -129,8 +131,8 @@ class TranscribeService : Service() {
                 p.registerCallback(cb, main)
                 projection = p
                 projectionCallback = cb
-            } catch (e: Exception) {
-                fail("Cannot start capture: ${e.message}")
+            } catch (t: Throwable) {
+                fail("Cannot start capture: ${describe(t)}")
                 return
             }
         }
@@ -140,6 +142,27 @@ class TranscribeService : Service() {
         connect()
         startCapture(source)
     }
+
+    private fun enterForeground(needsProjection: Boolean) {
+        val notification = buildNotification(getString(R.string.notif_listening))
+        val mic = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        val projectionType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        // If the system refuses the combined type, fall back to a narrower one.
+        val attempts = if (needsProjection) listOf(projectionType or mic, projectionType) else listOf(mic)
+        var last: Throwable? = null
+        for (types in attempts) {
+            try {
+                ServiceCompat.startForeground(this, NOTIF_ID, notification, types)
+                return
+            } catch (t: Throwable) {
+                last = t
+            }
+        }
+        throw last ?: IllegalStateException("startForeground failed")
+    }
+
+    private fun describe(t: Throwable): String =
+        "${t.javaClass.simpleName}: ${t.message ?: "no details"}"
 
     private fun stopSession(message: String?) {
         running = false
@@ -216,7 +239,15 @@ class TranscribeService : Service() {
         }
         TranscriptBus.setStatus("Reconnecting… ($reason)")
         val delay = minOf(1000L * reconnectAttempts, 8000L)
-        main.postDelayed({ if (running && client == null) connect() }, delay)
+        main.postDelayed({
+            if (running && client == null) {
+                try {
+                    connect()
+                } catch (t: Throwable) {
+                    fail("Reconnect failed: ${describe(t)}")
+                }
+            }
+        }, delay)
     }
 
     // --------------------------------------------------------------- capture
@@ -227,10 +258,10 @@ class TranscribeService : Service() {
         try {
             if (source != SOURCE_PLAYBACK) mic = buildMicRecord()
             if (source != SOURCE_MIC) playback = buildPlaybackRecord(projection!!)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             mic?.release()
             playback?.release()
-            fail("Audio capture failed: ${e.message}")
+            fail("Audio capture failed: ${describe(t)}")
             return
         }
 
@@ -308,8 +339,8 @@ class TranscribeService : Service() {
                         filled = 0
                     }
                 }
-            } catch (e: Exception) {
-                main.post { if (running) fail("Audio error: ${e.message}") }
+            } catch (t: Throwable) {
+                main.post { if (running) fail("Audio error: ${describe(t)}") }
             } finally {
                 try {
                     rec.stop()
@@ -346,8 +377,8 @@ class TranscribeService : Service() {
                     }
                     sendFrame(out)
                 }
-            } catch (e: InterruptedException) {
-                // stopping
+            } catch (t: Throwable) {
+                main.post { if (running) fail("Audio mix error: ${describe(t)}") }
             }
         }, "mixer").start()
     }

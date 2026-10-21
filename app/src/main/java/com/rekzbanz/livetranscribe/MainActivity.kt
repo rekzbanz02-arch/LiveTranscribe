@@ -21,6 +21,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 
@@ -78,6 +79,21 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.copyButton).setOnClickListener { copyTranscript() }
         findViewById<Button>(R.id.shareButton).setOnClickListener { shareTranscript() }
         findViewById<Button>(R.id.clearButton).setOnClickListener { TranscriptBus.clear() }
+
+        CrashReporter.take(this)?.let { showCrashReport(it) }
+    }
+
+    private fun showCrashReport(report: String) {
+        AlertDialog.Builder(this)
+            .setTitle("The app crashed last time")
+            .setMessage(report.take(3000))
+            .setPositiveButton(R.string.copy) { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("crash", report))
+                toast(R.string.toast_copied)
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     override fun onStart() {

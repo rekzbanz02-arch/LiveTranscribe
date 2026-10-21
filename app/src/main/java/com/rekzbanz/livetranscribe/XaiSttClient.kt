@@ -66,11 +66,15 @@ class XaiSttClient(
 
         socket = http.newWebSocket(request, object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
-                val json = try {
-                    JSONObject(text)
-                } catch (e: Exception) {
-                    return
+                try {
+                    handleMessage(text)
+                } catch (t: Throwable) {
+                    // a bad message must never take the app down
                 }
+            }
+
+            private fun handleMessage(text: String) {
+                val json = JSONObject(text)
                 when (json.optString("type")) {
                     "transcript.created" -> {
                         ready = true
