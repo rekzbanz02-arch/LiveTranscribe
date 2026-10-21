@@ -59,7 +59,7 @@ class XaiSttClient(
 
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
+            .header("Authorization", "Bearer ${KeyCheck.clean(apiKey)}")
             .build()
 
         socket = http.newWebSocket(request, object : WebSocketListener() {
@@ -106,16 +106,39 @@ class XaiSttClient(
                 ready = false
                 if (closedByUs) return
                 val code = response?.code
-                val fatal = code == 401 || code == 403
+                val detail = if (response != null) serverDetail(response) else ""
+                // Any 4xx other than "timeout" / "rate limited" means our request or key is
+                // rejected; retrying the identical request can never succeed.
+                val fatal = code != null && code in 400..499 && code != 408 && code != 429
                 val reason = when (code) {
+                    null -> lastError ?: (t.message ?: "Network error")
                     401 -> "Invalid API key (401)"
                     403 -> "Access denied (403): check the key's permissions and credits"
                     429 -> "Rate limited (429)"
-                    else -> lastError ?: (t.message ?: "Network error")
+                    400 -> "xAI rejected the connection (400)" +
+                        (if (detail.isNotEmpty()) ": $detail" else "")
+                    else -> "Server answered $code" +
+                        (if (detail.isNotEmpty()) ": $detail" else "")
                 }
                 callbacks.onDisconnected(reason, fatal)
             }
         })
+    }
+
+    /** The server's own explanation of a refused handshake (xAI sends a short JSON body). */
+    private fun serverDetail(response: Response): String {
+        return try {
+            val text = response.peekBody(1024L).string().trim().replace(Regex("\\s+"), " ")
+            val message = try {
+                val json = JSONObject(text)
+                json.optString("error").ifEmpty { json.optString("message") }
+            } catch (t: Throwable) {
+                ""
+            }
+            message.ifEmpty { text }.take(300)
+        } catch (t: Throwable) {
+            ""
+        }
     }
 
     fun sendAudio(pcm16le: ByteArray): Boolean {

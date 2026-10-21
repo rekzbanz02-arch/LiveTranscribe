@@ -11,8 +11,8 @@ android {
         applicationId = "com.rekzbanz.livetranscribe"
         minSdk = 29 // AudioPlaybackCapture (recording other apps' audio) needs Android 10+
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
     }
 
     // Fixed signing key so every build installs over the previous one.

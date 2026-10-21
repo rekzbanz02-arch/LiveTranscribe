@@ -15,6 +15,8 @@
     <string name="notif_listening">Listening…</string>
     <string name="notif_channel">Live transcription</string>
     <string name="toast_need_key">Enter your xAI API key first</string>
+    <string name="show_key">Show key</string>
+    <string name="toast_key_format">This doesn\'t look like an xAI key (they start with xai-). Starting anyway.</string>
     <string name="toast_need_mic">Microphone permission is required</string>
     <string name="toast_need_capture">Capture permission is needed to hear phone audio</string>
     <string name="toast_copied">Copied</string>

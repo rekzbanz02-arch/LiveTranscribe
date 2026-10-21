@@ -31,4 +31,14 @@ Open the folder in Android Studio and run, or from a terminal with JDK 17 and th
 - xAI documents `fil` (Filipino) and English. Cebuano is not on its published language list, so Cebuano may come out approximated or in the wrong language. Auto-detect gives it the best chance.
 - Some apps block audio capture (phone calls, DRM-protected streaming). They will stay silent in *Phone audio* mode.
 - With *Microphone + phone audio*, use headphones, otherwise the mic re-records the speaker and lines repeat.
-- Whether a free xAI key includes speech-to-text is not stated in xAI's docs. A 401/403/429 error in the status line means the key, its permissions or its credits.
+- Whether a free xAI key includes speech-to-text is not stated in xAI's docs. A 400/401/403/429 error in the status line means the key, its permissions or its credits.
+
+## Troubleshooting: "Expected HTTP 101 response but was '400 Bad Request'"
+
+xAI answers HTTP 400 (not only 401) when the API key is incorrect, so this error means the server refused the connection before any audio was sent, almost always because of the key. Since v1.3 the app stops right away (no endless reconnects) and, after a refusal, asks xAI directly what is wrong with the key. The status line then shows one of:
+
+- *xAI says this API key is invalid or incorrect*: copy the key again from console.x.ai. Tick **Show key** to check what was pasted: it must start with `xai-` and have no extra text.
+- *The key is recognised, but ... blocked or disabled*: check the key and your credits in the xAI console.
+- *xAI accepts this key, so the key is not the problem*: the server's own message is shown on the line above; send it back so the request can be adjusted.
+
+The app also cleans the pasted key automatically (spaces, line breaks, quotes, a leading `Bearer `).

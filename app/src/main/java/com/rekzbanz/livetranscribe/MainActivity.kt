@@ -12,9 +12,12 @@ import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import android.text.style.ForegroundColorSpan
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -74,6 +77,15 @@ class MainActivity : AppCompatActivity() {
         apiKeyInput.setText(prefs.getString("api_key", ""))
         sourceSpinner.setSelection(prefs.getInt("source", 0))
         languageSpinner.setSelection(prefs.getInt("language", 0))
+
+        // Lets you see what was actually pasted (a wrong or half-copied key is the usual cause of HTTP 400).
+        findViewById<CheckBox>(R.id.showKeyCheck).setOnCheckedChangeListener { _, checked ->
+            val cursor = apiKeyInput.selectionEnd
+            apiKeyInput.transformationMethod =
+                if (checked) HideReturnsTransformationMethod.getInstance()
+                else PasswordTransformationMethod.getInstance()
+            apiKeyInput.setSelection(cursor.coerceIn(0, apiKeyInput.text.length))
+        }
 
         startButton.setOnClickListener { onStartStop() }
         findViewById<Button>(R.id.copyButton).setOnClickListener { copyTranscript() }
@@ -149,10 +161,15 @@ class MainActivity : AppCompatActivity() {
             )
             return
         }
-        val key = apiKeyInput.text.toString().trim()
+        val key = KeyCheck.clean(apiKeyInput.text.toString())
         if (key.isEmpty()) {
             toast(R.string.toast_need_key)
             return
+        }
+        // Show the cleaned key so the field always matches what is sent.
+        if (key != apiKeyInput.text.toString()) apiKeyInput.setText(key)
+        if (!KeyCheck.looksLikeXaiKey(key)) {
+            Toast.makeText(this, R.string.toast_key_format, Toast.LENGTH_LONG).show()
         }
         prefs.edit()
             .putString("api_key", key)
@@ -178,7 +195,7 @@ class MainActivity : AppCompatActivity() {
     private fun launchService(source: Int, resultCode: Int, projectionData: Intent?) {
         val intent = Intent(this, TranscribeService::class.java)
             .setAction(TranscribeService.ACTION_START)
-            .putExtra(TranscribeService.EXTRA_API_KEY, apiKeyInput.text.toString().trim())
+            .putExtra(TranscribeService.EXTRA_API_KEY, KeyCheck.clean(apiKeyInput.text.toString()))
             .putExtra(TranscribeService.EXTRA_SOURCE, source)
             .putExtra(TranscribeService.EXTRA_LANGUAGE, languageCodes[languageSpinner.selectedItemPosition])
             .putExtra(TranscribeService.EXTRA_RESULT_CODE, resultCode)

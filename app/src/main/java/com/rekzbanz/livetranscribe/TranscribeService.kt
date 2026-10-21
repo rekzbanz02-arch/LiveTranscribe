@@ -59,6 +59,10 @@ class TranscribeService : Service() {
     @Volatile
     private var client: XaiSttClient? = null
 
+    /** Bumped on every start so a late background result can't act on a newer session. */
+    @Volatile
+    private var sessionId = 0
+
     private var projection: MediaProjection? = null
     private var projectionCallback: MediaProjection.Callback? = null
     private var apiKey = ""
@@ -106,9 +110,10 @@ class TranscribeService : Service() {
 
     private fun startSession(intent: Intent) {
         if (running) stopSession(null)
+        sessionId++
 
         val source = intent.getIntExtra(EXTRA_SOURCE, SOURCE_MIC)
-        apiKey = intent.getStringExtra(EXTRA_API_KEY).orEmpty()
+        apiKey = KeyCheck.clean(intent.getStringExtra(EXTRA_API_KEY).orEmpty())
         language = intent.getStringExtra(EXTRA_LANGUAGE).orEmpty()
         reconnectAttempts = 0
         val needsProjection = source != SOURCE_MIC
@@ -229,7 +234,20 @@ class TranscribeService : Service() {
         client = null
         TranscriptBus.flush()
         if (fatal) {
-            fail(reason)
+            // xAI answers 400 for a wrong key too, so ask it directly and say something definite
+            // instead of showing a bare HTTP error. Never retry: the same request can't succeed.
+            val sid = sessionId
+            val key = apiKey
+            TranscriptBus.setStatus("Checking your API key…")
+            Thread({
+                val verdict = KeyCheck.diagnose(key)
+                val message = buildString {
+                    append(reason)
+                    if (verdict.isNotEmpty()) append("\n").append(verdict)
+                    append("\nKey used: ").append(KeyCheck.fingerprint(key))
+                }
+                main.post { if (running && sessionId == sid) fail(message) }
+            }, "key-check").start()
             return
         }
         reconnectAttempts++
