@@ -1,7 +1,5 @@
 package com.rekzbanz.livetranscribe
 
-import android.os.Handler
-import android.os.Looper
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -130,30 +128,47 @@ class XaiSttClient(
     fun close() {
         closedByUs = true
         val s = socket
-        if (s != null && ready) {
-            ready = false
-            s.send("{\"type\":\"audio.done\"}")
-            Handler(Looper.getMainLooper()).postDelayed({
-                s.close(1000, "done")
-                release()
-            }, 1500)
-        } else {
-            ready = false
-            s?.cancel()
+        val wasReady = ready
+        ready = false
+        // Socket work must never run on the main thread (NetworkOnMainThreadException).
+        Thread({
+            try {
+                if (s != null && wasReady) {
+                    s.send("{\"type\":\"audio.done\"}")
+                    Thread.sleep(1500) // let the server deliver the last words
+                    s.close(1000, "done")
+                } else {
+                    s?.cancel()
+                }
+            } catch (t: Throwable) {
+                // ignore: we are shutting down anyway
+            }
             release()
-        }
+        }, "stt-close").start()
     }
 
     /** Drop a dead connection without waiting. */
     fun discard() {
         closedByUs = true
         ready = false
-        socket?.cancel()
-        release()
+        val s = socket
+        Thread({
+            try {
+                s?.cancel()
+            } catch (t: Throwable) {
+                // ignore
+            }
+            release()
+        }, "stt-discard").start()
     }
 
+    /** Call from a background thread only: closing TLS sockets is network I/O. */
     private fun release() {
-        http.dispatcher.executorService.shutdown()
-        http.connectionPool.evictAll()
+        try {
+            http.dispatcher.executorService.shutdown()
+            http.connectionPool.evictAll()
+        } catch (t: Throwable) {
+            // ignore
+        }
     }
 }
