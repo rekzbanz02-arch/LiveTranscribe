@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Live Transcribe</string>
+    <string name="hint_api_key">xAI API key</string>
+    <string name="label_source">Audio source</string>
+    <string name="label_language">Language</string>
+    <string name="start">Start transcribing</string>
+    <string name="stop">Stop</string>
+    <string name="copy">Copy</string>
+    <string name="share">Share</string>
+    <string name="clear">Clear</string>
+    <string name="hint_transcript">Your live transcript will appear here.</string>
+    <string name="status_idle">Idle</string>
+    <string name="status_listening">Listening…</string>
+    <string name="notif_listening">Listening…</string>
+    <string name="notif_channel">Live transcription</string>
+    <string name="toast_need_key">Enter your xAI API key first</string>
+    <string name="toast_need_mic">Microphone permission is required</string>
+    <string name="toast_need_capture">Capture permission is needed to hear phone audio</string>
+    <string name="toast_copied">Copied</string>
+    <string name="toast_empty">Nothing to copy yet</string>
+    <string name="help_capture">Phone audio: when Android asks, choose Entire screen, then tap Start. Some apps block capture (calls, DRM streaming); use Microphone for those. Use headphones with Microphone + phone audio to avoid echo.</string>
+
+    <string-array name="source_options">
+        <item>Microphone</item>
+        <item>Phone audio (YouTube, Facebook, browser, apps)</item>
+        <item>Microphone + phone audio</item>
+    </string-array>
+
+    <string-array name="language_options">
+        <item>Auto-detect (English / Tagalog / Cebuano / mixed)</item>
+        <item>Filipino / Tagalog</item>
+        <item>English</item>
+    </string-array>
+</resources>
